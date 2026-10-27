@@ -1,0 +1,19 @@
+# Compilación de la web (GitHub Actions publica este directorio)
+/site/
+
+# Archivos locales y Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.DS_Store
+Thumbs.db
+
+# Resultados pesados o no publicados
+results/
+data/private/
+*.h5
+*.hdf5
+*.vtk
+*.vtu
