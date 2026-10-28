@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Magnetic Field Viewer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#0d0d1a;color:#dde;min-height:100vh}
+h1{text-align:center;padding:11px;font-size:1.1em;letter-spacing:1px;color:#88aaff;border-bottom:1px solid #1e1e40}
+.controls{display:flex;flex-wrap:wrap;gap:14px;padding:10px 16px;background:#11112a;border-bottom:1px solid #1e1e40;align-items:flex-end}
+.cg{display:flex;flex-direction:column;gap:4px}
+.cg label{font-size:0.74em;color:#99a;letter-spacing:0.4px;text-transform:uppercase}
+.cr{display:flex;align-items:center;gap:6px}
+input[type=range]{width:130px;accent-color:#5588ff;cursor:pointer}
+input[type=number]{width:68px;background:#181830;border:1px solid #334;color:#fff;padding:3px 6px;border-radius:4px;font-size:0.9em;-moz-appearance:textfield}
+input[type=number]::-webkit-inner-spin-button{opacity:0.4}
+.unit{font-size:0.78em;color:#778}
+.val{font-size:1em;font-weight:bold;min-width:38px;text-align:right}
+.c1{color:#ff9955}.c2{color:#44ddff}
+.mbg{display:flex;gap:5px}
+.mb{padding:3px 10px;border-radius:4px;border:1px solid #334;background:#181830;color:#99b;cursor:pointer;font-size:0.78em;transition:all 0.12s}
+.mb.active{background:#2244bb;color:#fff;border-color:#5588ff}
+.sep{width:1px;background:#1e1e40;align-self:stretch;margin:0 2px}
+.plots{display:flex;flex-wrap:wrap;gap:12px;padding:10px;justify-content:center}
+.pw{background:#11112a;border-radius:8px;border:1px solid #1a1a38;padding:8px}
+.pt{text-align:center;font-size:0.8em;color:#99a;margin-bottom:4px}
+.stat-row{display:flex;gap:16px;justify-content:center;padding:5px 0;flex-wrap:wrap}
+.stat{font-size:0.78em;color:#99a}.stat span{color:#fff;font-weight:bold}
+.info{text-align:center;font-size:0.73em;color:#557;padding:4px}
+#probe{text-align:center;padding:4px;font-size:0.8em;color:#88aaff;min-height:18px}
+.box-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.box-corner{display:flex;flex-direction:column;gap:3px;border:1px solid #334;border-radius:4px;padding:5px 8px;background:#0d0d20}
+.box-corner label{font-size:0.7em;color:#778;text-transform:uppercase}
+.box-corner .cr{gap:4px}
+.box-corner input[type=number]{width:93px}
+</style>
+</head>
+<body>
+<h1>LIPAc Injector - 2D Cylindrical Magnetic Field Viewer</h1>
+<div class="controls">
+  <!-- Coil 1 -->
+  <div class="cg">
+    <label class="c1">Coil RF &mdash; I&#x2081;</label>
+    <div class="cr">
+      <input type="range" id="I1r" min="0" max="120" step="0.1" value="93.6">
+      <input type="number" id="I1n" min="0" max="120" step="0.1" value="93.6">
+      <span class="unit">A</span>
+    </div>
+  </div>
+  <!-- Coil 2 -->
+  <div class="cg">
+    <label class="c2">Coil Extraction &mdash; I&#x2082;</label>
+    <div class="cr">
+      <input type="range" id="I2r" min="0" max="120" step="0.1" value="37.5">
+      <input type="number" id="I2n" min="0" max="120" step="0.1" value="37.5">
+      <span class="unit">A</span>
+    </div>
+  </div>
+  <div class="sep"></div>
+  <!-- Field component -->
+  <div class="cg">
+    <label>Component</label>
+    <div class="mbg">
+      <button class="mb active" id="btn-B"  onclick="setMode('B')">|B|</button>
+      <button class="mb"        id="btn-Br" onclick="setMode('Br')">Br</button>
+      <button class="mb"        id="btn-Bz" onclick="setMode('Bz')">Bz</button>
+    </div>
+  </div>
+  <!-- Arrows -->
+  <div class="cg">
+    <label>Arrows</label>
+    <div class="mbg">
+      <button class="mb active" id="btn-arr-on"  onclick="toggleArrows(true)">On</button>
+      <button class="mb"        id="btn-arr-off" onclick="toggleArrows(false)">Off</button>
+    </div>
+  </div>
+  <div class="sep"></div>
+  <!-- Iso-B -->
+  <div class="cg">
+    <label>Iso-B contour</label>
+    <div class="cr">
+      <input type="range"  id="isoR" min="0" max="100" step="0.1" value="87.5" style="width:110px">
+      <input type="number" id="isoN" min="0" step="1" value="87.5" title="Manual entry is integer mT only">
+      <span class="unit">mT</span>
+      <button class="mb" onclick="setIso(0)" style="padding:3px 7px;font-size:0.73em">&#x2715;</button>
+    </div>
+  </div>
+  <!-- Iso-B smoothing (artefact filtering) -->
+  <div class="cg">
+    <label>Iso smoothing</label>
+    <div class="cr">
+      <input type="range" id="smR" min="0" max="4" step="0.1" value="0" style="width:90px">
+      <span class="val" id="smV" style="min-width:26px">0.0</span>
+      <span class="unit">px</span>
+    </div>
+  </div>
+  <div class="sep"></div>
+  <!-- Boxes -->
+  <div class="cg">
+    <label>Overlay boxes (z&#x2081;,r&#x2081;) &rarr; (z&#x2082;,r&#x2082;) in mm</label>
+    <div class="box-row">
+      <!-- Box A -->
+      <div class="box-corner" style="border-color:#ffffff55">
+        <label style="color:#fff8">PLASMA chamber</label>
+        <div class="cr">
+          <span style="font-size:0.72em;color:#99a">z&#x2081;</span>
+          <input type="number" id="az1" value="0" step="1">
+          <span style="font-size:0.72em;color:#99a">r&#x2081;</span>
+          <input type="number" id="ar1" value="0" step="1" min="0">
+        </div>
+        <div class="cr">
+          <span style="font-size:0.72em;color:#99a">z&#x2082;</span>
+          <input type="number" id="az2" value="-100" step="1">
+          <span style="font-size:0.72em;color:#99a">r&#x2082;</span>
+          <input type="number" id="ar2" value="45" step="1" min="0">
+        </div>
+        <div class="cr" style="gap:4px;margin-top:2px">
+          <input type="checkbox" id="aOn" checked> <label for="aOn" style="font-size:0.72em;color:#99a;text-transform:none">Show</label>
+        </div>
+      </div>
+      <!-- Box B -->
+      <div class="box-corner" style="border-color:#ffff0055">
+        <label style="color:#ffff88">BN disk</label>
+        <div class="cr">
+          <span style="font-size:0.72em;color:#99a">z&#x2081;</span>
+          <input type="number" id="bz1" value="-100" step="1">
+          <span style="font-size:0.72em;color:#99a">r&#x2081;</span>
+          <input type="number" id="br1" value="45" step="1" min="0">
+        </div>
+        <div class="cr">
+          <span style="font-size:0.72em;color:#99a">z&#x2082;</span>
+          <input type="number" id="bz2" value="-98" step="1">
+          <span style="font-size:0.72em;color:#99a">r&#x2082;</span>
+          <input type="number" id="br2" value="4" step="1" min="0">
+        </div>
+        <div class="cr" style="gap:4px;margin-top:2px">
+          <input type="checkbox" id="bOn" checked> <label for="bOn" style="font-size:0.72em;color:#99a;text-transform:none">Show</label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="stats" class="stat-row"></div>
+<div class="plots">
+  <!-- Main map -->
+  <div class="pw">
+    <div class="pt" id="plot-title">Total field |B| &mdash; z (abscissa) &nbsp; r (ordinate)</div>
+    <div style="display:flex;align-items:stretch;gap:5px">
+      <canvas id="mc" width="520" height="400"></canvas>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+        <div style="font-size:10px;color:#99a" id="cb-max">max</div>
+        <canvas id="cbc" width="16" height="354"></canvas>
+        <div style="font-size:10px;color:#99a" id="cb-min">0</div>
+      </div>
+    </div>
+    <div class="info">z &rarr; (m) &nbsp;|&nbsp; r &uarr; (m) &nbsp;|&nbsp; Click to probe value</div>
+  </div>
+  <!-- Axis plot -->
+  <div class="pw">
+    <div class="pt">Field on axis (r = 0) vs z</div>
+    <canvas id="ac" width="330" height="400"></canvas>
+    <div class="info">Updates live with I&#x2081;, I&#x2082;</div>
+  </div>
+</div>
+<div id="probe-input" style="text-align:center;padding:6px 4px 2px;font-size:0.82em;color:#99a">
+  Probe field at &nbsp; z <input type="number" id="pz" value="-90" step="1" style="width:78px"> mm
+  &nbsp; r <input type="number" id="pr" value="0" step="1" min="0" style="width:78px"> mm &nbsp;
+  <button class="mb" id="pBtn" onclick="probeAt()" style="padding:3px 12px">Get B</button>
+</div>
+<div id="probe"></div>
+
+
+<!-- ── TWO-POINT SOLVER PANEL ── -->
+<div style="display:flex;flex-wrap:wrap;gap:12px;padding:10px;justify-content:center;border-top:1px solid #1e1e40;margin-top:2px">
+  <div class="pw" style="flex:0 0 auto">
+    <div class="pt">Two-point solve — find I₁ &amp; I₂</div>
+    <div style="font-size:0.72em;color:#557;text-align:center;padding:2px 0 6px">
+      Fixes target field at two locations → exact (I₁, I₂). Bz/Br: linear system. |B|: non-linear (all roots shown).
+    </div>
+    <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+
+      <!-- Point 1 -->
+      <div style="display:flex;flex-direction:column;gap:6px;background:#0d0d20;border:1px solid #1e1e40;border-radius:6px;padding:10px;min-width:170px">
+        <div style="font-size:0.72em;color:#88aaff;text-align:center;letter-spacing:0.5px">Point 1</div>
+        <div class="cg"><label>z₁ (mm)</label><input type="number" id="tp-z1" value="-100" step="1" style="width:120px"></div>
+        <div class="cg"><label>r₁ (mm)</label><input type="number" id="tp-r1" value="0"   step="1" min="0" style="width:120px"></div>
+        <div class="cg">
+          <label>Target <span id="tp-lbl1" style="color:#ffdd44">|B|</span></label>
+          <div class="cr"><input type="number" id="tp-b1" value="87.5" step="0.1" style="width:88px"><span class="unit">mT</span></div>
+        </div>
+      </div>
+
+      <!-- Point 2 -->
+      <div style="display:flex;flex-direction:column;gap:6px;background:#0d0d20;border:1px solid #1e1e40;border-radius:6px;padding:10px;min-width:170px">
+        <div style="font-size:0.72em;color:#88aaff;text-align:center;letter-spacing:0.5px">Point 2</div>
+        <div class="cg"><label>z₂ (mm)</label><input type="number" id="tp-z2" value="0" step="1" style="width:120px"></div>
+        <div class="cg"><label>r₂ (mm)</label><input type="number" id="tp-r2" value="0"   step="1" min="0" style="width:120px"></div>
+        <div class="cg">
+          <label>Target <span id="tp-lbl2" style="color:#ffdd44">|B|</span></label>
+          <div class="cr"><input type="number" id="tp-b2" value="87.5" step="0.1" style="width:88px"><span class="unit">mT</span></div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div style="display:flex;flex-direction:column;gap:8px;background:#0d0d20;border:1px solid #1e1e40;border-radius:6px;padding:10px;min-width:190px;justify-content:flex-start">
+        <div style="font-size:0.72em;color:#88aaff;text-align:center;letter-spacing:0.5px">Solutions</div>
+        <div id="tp-results" style="font-size:0.78em;color:#99a;min-height:80px;line-height:1.8"></div>
+        <div id="tp-apply-btns" style="display:flex;flex-direction:column;gap:4px"></div>
+        <div id="tp-note" style="font-size:0.68em;color:#557;min-height:1em"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── RESONANCE FINDER PANEL ── -->
+<div style="display:flex;flex-wrap:wrap;gap:12px;padding:10px;justify-content:center;border-top:1px solid #1e1e40;margin-top:2px">
+  <div class="pw" style="flex:0 0 auto">
+    <div class="pt">Resonance positions on axis (r = 0)</div>
+    <div style="font-size:0.72em;color:#557;text-align:center;padding:2px 0 6px">
+      Finds all z where the on-axis field <span id="res-lbl" style="color:#ffdd44">|B|</span> crosses the target value, for the current I₁, I₂.
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;justify-content:center;flex-wrap:wrap">
+      <div class="cg">
+        <label>Target <span id="res-lbl2" style="color:#ffdd44">|B|</span></label>
+        <div class="cr">
+          <input type="number" id="res-target" value="87.5" step="0.1" style="width:88px">
+          <span class="unit">mT</span>
+        </div>
+      </div>
+      <button class="mb" id="res-btn" onclick="findResonances()" style="padding:5px 16px;border-color:#00ff88;color:#00ff88;font-weight:bold">Find crossings</button>
+      <div id="res-results" style="font-size:0.82em;color:#99a;min-height:1.4em;text-align:center"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+#loader{position:fixed;inset:0;background:#0d0d1aee;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;gap:18px}
+#loader h2{color:#88aaff;font-size:1.1em;letter-spacing:1px;margin:0}
+.fprow{display:flex;align-items:center;gap:10px}
+.fprow label{font-size:0.82em;color:#99a;min-width:170px;text-align:right}
+.fplbl{display:inline-block;padding:5px 14px;border-radius:5px;border:1px solid #5588ff;color:#88aaff;cursor:pointer;font-size:0.82em;background:#11112a;transition:background 0.12s}
+.fplbl:hover{background:#1a2a55}
+.fplbl.ok{border-color:#44cc88;color:#44cc88}
+#loader-status{font-size:0.78em;color:#557;min-height:1.2em}
+#load-btn{padding:6px 22px;border-radius:5px;border:1px solid #5588ff;background:#1a2a55;color:#88aaff;cursor:pointer;font-size:0.9em;opacity:0.4;pointer-events:none;transition:opacity 0.2s}
+#load-btn.ready{opacity:1;pointer-events:auto}
+</style>
+
+<!-- ── FILE PICKER OVERLAY ── -->
+<div id="loader">
+  <h2>Load field CSV files</h2>
+  <div class="fprow">
+    <label>Coil RF &mdash; C1 (1 A)</label>
+    <label class="fplbl" id="lbl1" for="fc1">Choose C1_1A.csv</label>
+    <input type="file" id="fc1" accept=".csv" style="display:none">
+  </div>
+  <div class="fprow">
+    <label>Coil Extraction &mdash; C2 (1 A)</label>
+    <label class="fplbl" id="lbl2" for="fc2">Choose C2_1A.csv</label>
+    <input type="file" id="fc2" accept=".csv" style="display:none">
+  </div>
+  <div id="loader-status"></div>
+  <button id="load-btn" onclick="loadCSVs()">Load &amp; Start</button>
+</div>
+
+<script>
+// ===== FIXED AXIS GRAPH SCALE =====
+const AXIS_FIXED_SCALE = {
+  enabled: true,
+  min: 0,      // mT → adjust if needed
+  max: 120     // mT → adjust if needed
+};
+
+// RAW is populated after CSV load
+let RAW = null;
+let NR, NZ, rU, zU;
+let mode='B', showArrows=true, I1=60, I2=60, isoVal=0, isoSmooth=0;
+
+// ── CSV LOADER ───────────────────────────────────────────────────
+function parseCSV(text){
+  const lines=text.trim().split('\n');
+  const hdr=lines[0].split(',').map(s=>s.trim());
+  const ri=hdr.indexOf('r'), zi=hdr.indexOf('z');
+  const bri=hdr.indexOf('Br'), bzi=hdr.indexOf('Bz');
+  const rows=lines.slice(1).map(l=>l.split(',').map(Number));
+  // de-duplicate on (r,z)
+  const seen=new Set(), clean=[];
+  for(const row of rows){
+    const k=row[ri].toFixed(6)+','+row[zi].toFixed(6);
+    if(!seen.has(k)){seen.add(k);clean.push(row);}
+  }
+  const rSet=new Set(), zSet=new Set();
+  clean.forEach(row=>{rSet.add(row[ri].toFixed(6));zSet.add(row[zi].toFixed(6));});
+  const rU=Array.from(rSet).map(Number).sort((a,b)=>a-b);
+  const zU=Array.from(zSet).map(Number).sort((a,b)=>a-b);
+  const NR=rU.length, NZ=zU.length;
+  const Br=new Float32Array(NZ*NR), Bz=new Float32Array(NZ*NR);
+  const rIdx=Object.fromEntries(rU.map((v,i)=>[v.toFixed(6),i]));
+  const zIdx=Object.fromEntries(zU.map((v,i)=>[v.toFixed(6),i]));
+  for(const row of clean){
+    const iz=zIdx[row[zi].toFixed(6)], ir=rIdx[row[ri].toFixed(6)];
+    Br[iz*NR+ir]=row[bri]; Bz[iz*NR+ir]=row[bzi];
+  }
+  return {NR,NZ,rU,zU,Br,Bz};
+}
+
+const _files={c1:null,c2:null};
+document.getElementById('fc1').addEventListener('change',e=>{
+  _files.c1=e.target.files[0];
+  const l=document.getElementById('lbl1');
+  l.textContent=_files.c1.name; l.classList.add('ok');
+  checkReady();
+});
+document.getElementById('fc2').addEventListener('change',e=>{
+  _files.c2=e.target.files[0];
+  const l=document.getElementById('lbl2');
+  l.textContent=_files.c2.name; l.classList.add('ok');
+  checkReady();
+});
+function checkReady(){
+  if(_files.c1&&_files.c2) document.getElementById('load-btn').classList.add('ready');
+}
+
+function loadCSVs(){
+  const st=document.getElementById('loader-status');
+  st.textContent='Reading files…';
+  const read=f=>new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsText(f);});
+  Promise.all([read(_files.c1),read(_files.c2)]).then(([t1,t2])=>{
+    st.textContent='Parsing…';
+    try{
+      const d1=parseCSV(t1), d2=parseCSV(t2);
+      if(d1.NR!==d2.NR||d1.NZ!==d2.NZ) throw new Error(`Grid mismatch: C1 ${d1.NZ}×${d1.NR} vs C2 ${d2.NZ}×${d2.NR}`);
+      RAW={
+        NR2:d1.NR, NZ2:d1.NZ, rU2:d1.rU, zU2:d1.zU,
+        C1_Br:d1.Br, C1_Bz:d1.Bz,
+        C2_Br:d2.Br, C2_Bz:d2.Bz,
+        axis_z:d1.zU,
+        axis_C1Br:d1.rU.map((_,ir)=>d1.Br[0*d1.NR+ir])[0] !== undefined
+          ? (() => { const a=new Float32Array(d1.NZ); for(let iz=0;iz<d1.NZ;iz++) a[iz]=d1.Br[iz*d1.NR+0]; return a; })()
+          : new Float32Array(d1.NZ),
+        axis_C1Bz: (()=>{ const a=new Float32Array(d1.NZ); for(let iz=0;iz<d1.NZ;iz++) a[iz]=d1.Bz[iz*d1.NR+0]; return a; })(),
+        axis_C2Br: (()=>{ const a=new Float32Array(d2.NZ); for(let iz=0;iz<d2.NZ;iz++) a[iz]=d2.Br[iz*d2.NR+0]; return a; })(),
+        axis_C2Bz: (()=>{ const a=new Float32Array(d2.NZ); for(let iz=0;iz<d2.NZ;iz++) a[iz]=d2.Bz[iz*d2.NR+0]; return a; })(),
+      };
+      NR=RAW.NR2; NZ=RAW.NZ2; rU=RAW.rU2; zU=RAW.zU2;
+      document.getElementById('loader').style.display='none';
+      init();
+    } catch(e){ st.textContent='Error: '+e.message; st.style.color='#f77'; }
+  });
+}
+
+// Cached combined field
+let _I1=-1,_I2=-1,_Br=null,_Bz=null;
+function getField(){
+  if(!RAW) return {Br:new Float32Array(0),Bz:new Float32Array(0)};
+  if(I1===_I1&&I2===_I2) return {Br:_Br,Bz:_Bz};
+  const n=NR*NZ;
+  _Br=new Float32Array(n); _Bz=new Float32Array(n);
+  for(let i=0;i<n;i++){_Br[i]=I1*RAW.C1_Br[i]+I2*RAW.C2_Br[i]; _Bz[i]=I1*RAW.C1_Bz[i]+I2*RAW.C2_Bz[i];}
+  _I1=I1; _I2=I2;
+  return {Br:_Br,Bz:_Bz};
+}
+function idx(iz,ir){return iz*NR+ir;}
+
+// Color maps
+function plasma(t){
+  const s=[[13,8,135],[84,2,163],[139,10,165],[185,50,137],[219,92,104],[244,136,73],[254,188,43],[240,249,33]];
+  t=Math.max(0,Math.min(1,t));
+  const i=Math.min(Math.floor(t*(s.length-1)),s.length-2),f=t*(s.length-1)-i;
+  return [s[i][0]+f*(s[i+1][0]-s[i][0]),s[i][1]+f*(s[i+1][1]-s[i][1]),s[i][2]+f*(s[i+1][2]-s[i][2])].map(Math.round);
+}
+function diverge(t){
+  t=Math.max(0,Math.min(1,t));
+  if(t<0.5){const f=t*2;return[Math.round(f*255),Math.round(f*255),255];}
+  const f=(t-0.5)*2;return[255,Math.round((1-f)*255),Math.round((1-f)*255)];
+}
+function fmtB(v){
+  const a=Math.abs(v);
+  if(a<1e-6)return(v*1e9).toFixed(1)+'nT';
+  if(a<1e-3)return(v*1e6).toFixed(1)+'uT';
+  if(a<1)return(v*1e3).toFixed(2)+'mT';
+  return v.toFixed(3)+'T';
+}
+
+// ── MAP CANVAS ──────────────────────────────────────────────────
+const mc=document.getElementById('mc'), mctx=mc.getContext('2d');
+const cbc=document.getElementById('cbc'), cbctx=cbc.getContext('2d');
+const PAD={l:50,r:10,t:12,b:44};
+const PW=mc.width-PAD.l-PAD.r, PH=mc.height-PAD.t-PAD.b;
+
+// Map coordinate helpers
+function zToX(zv){return PAD.l+(zv-zU[0])/(zU[NZ-1]-zU[0])*PW;}
+function rToY(rv){return PAD.t+(1-(rv-rU[0])/(rU[NR-1]-rU[0]))*PH;}
+
+function drawMap(){
+  const {Br,Bz}=getField();
+  let vmin=1e30,vmax=-1e30;
+  const vals=new Float32Array(NZ*NR);
+  for(let iz=0;iz<NZ;iz++) for(let ir=0;ir<NR;ir++){
+    const k=idx(iz,ir);
+    let v=mode==='B'?Math.sqrt(Br[k]**2+Bz[k]**2):mode==='Br'?Br[k]:Bz[k];
+    vals[k]=v; if(v<vmin)vmin=v; if(v>vmax)vmax=v;
+  }
+  const rng=vmax-vmin+1e-30;
+
+  // Heatmap
+  const imgd=mctx.createImageData(PW,PH);
+  const buf=imgd.data;
+  for(let py=0;py<PH;py++){
+    const ir=Math.round((1-py/PH)*(NR-1));
+    for(let px=0;px<PW;px++){
+      const iz=Math.round(px/PW*(NZ-1));
+      const rgb=mode==='B'?plasma((vals[idx(iz,ir)]-vmin)/rng):diverge((vals[idx(iz,ir)]-vmin)/rng);
+      const o=(py*PW+px)*4;
+      buf[o]=rgb[0];buf[o+1]=rgb[1];buf[o+2]=rgb[2];buf[o+3]=255;
+    }
+  }
+  mctx.putImageData(imgd,PAD.l,PAD.t);
+
+  // Arrows
+  if(showArrows){
+    let maxMag=0;
+    for(let i=0;i<NZ*NR;i++){const m=Math.sqrt(Br[i]**2+Bz[i]**2);if(m>maxMag)maxMag=m;}
+    const step=18;
+    mctx.strokeStyle='rgba(255,255,255,0.65)'; mctx.lineWidth=1;
+    for(let py=step/2;py<PH;py+=step) for(let px=step/2;px<PW;px+=step){
+      const iz=Math.round(px/PW*(NZ-1)), ir=Math.round((1-py/PH)*(NR-1));
+      const k=idx(iz,ir), bri=Br[k], bzi=Bz[k], mag=Math.sqrt(bri**2+bzi**2);
+      if(mag<1e-30) continue;
+      const l=step*0.55*(0.3+0.7*Math.log1p(mag/maxMag*6)/Math.log1p(6));
+      drawArrow(PAD.l+px, PAD.t+py, bzi/mag*l, -bri/mag*l);
+    }
+  }
+
+  // Iso contour — CLIPPED to plot area
+  if(isoVal>0){
+    // Smooth the field grid before contouring to suppress int16-quantization artefacts
+    const cVals=gaussianSmooth(vals, isoSmooth);
+    mctx.save();
+    mctx.beginPath();
+    mctx.rect(PAD.l, PAD.t, PW, PH);  // clip region = exact plot area
+    mctx.clip();
+    mctx.strokeStyle='#00ff88'; mctx.lineWidth=2; mctx.lineJoin='round';
+    drawContour(cVals, isoVal*1e-3, 8);
+    mctx.restore();
+    // Label inside plot area
+    mctx.fillStyle='#00ff88'; mctx.font='bold 11px monospace'; mctx.textAlign='left';
+    mctx.fillText(fmtB(isoVal*1e-3), PAD.l+4, PAD.t+14);
+  }
+
+  // Overlay boxes
+  drawBoxes();
+
+  drawMapAxes();
+  drawColorbar(vmin,vmax);
+  updateStats(Br,Bz);
+}
+
+// Separable Gaussian blur of a scalar grid (edge-clamped). sigma in grid cells.
+// Used ONLY for iso-contour extraction to suppress int16-quantization artefacts;
+// the heatmap itself stays on the raw field.
+function gaussianSmooth(vals, sigma){
+  if(sigma<=0) return vals;
+  const radius=Math.max(1,Math.ceil(sigma*3));
+  const kernel=new Float32Array(2*radius+1);
+  let ksum=0;
+  for(let i=-radius;i<=radius;i++){const w=Math.exp(-(i*i)/(2*sigma*sigma));kernel[i+radius]=w;ksum+=w;}
+  for(let i=0;i<kernel.length;i++) kernel[i]/=ksum;
+  const tmp=new Float32Array(NZ*NR);
+  const out=new Float32Array(NZ*NR);
+  // pass 1: blur along z (stride NR)
+  for(let ir=0;ir<NR;ir++){
+    for(let iz=0;iz<NZ;iz++){
+      let acc=0;
+      for(let k=-radius;k<=radius;k++){
+        let jz=iz+k; if(jz<0)jz=0; else if(jz>=NZ)jz=NZ-1;
+        acc+=vals[jz*NR+ir]*kernel[k+radius];
+      }
+      tmp[iz*NR+ir]=acc;
+    }
+  }
+  // pass 2: blur along r (stride 1)
+  for(let iz=0;iz<NZ;iz++){
+    for(let ir=0;ir<NR;ir++){
+      let acc=0;
+      for(let k=-radius;k<=radius;k++){
+        let jr=ir+k; if(jr<0)jr=0; else if(jr>=NR)jr=NR-1;
+        acc+=tmp[iz*NR+jr]*kernel[k+radius];
+      }
+      out[iz*NR+ir]=acc;
+    }
+  }
+  return out;
+}
+
+function drawContour(vals, iso, minLenPx){
+  if(minLenPx===undefined) minLenPx=8;
+  const cw=PW/(NZ-1), ch=PH/(NR-1);
+
+  // 1) Marching squares -> raw segments [x1,y1,x2,y2]
+  const rawSegs=[];
+  for(let iz=0;iz<NZ-1;iz++) for(let ir=0;ir<NR-1;ir++){
+    const v00=vals[idx(iz,ir)], v10=vals[idx(iz+1,ir)];
+    const v01=vals[idx(iz,ir+1)], v11=vals[idx(iz+1,ir+1)];
+    const c=((v00>=iso)?1:0)|((v10>=iso)?2:0)|((v01>=iso)?4:0)|((v11>=iso)?8:0);
+    if(c===0||c===15) continue;
+    // cell origin in canvas: x increases with iz, y decreases with ir (r=0 at bottom)
+    const x0=PAD.l+iz*cw, y0=PAD.t+(NR-1-ir)*ch;
+    const lz=(va,vb)=>Math.abs(vb-va)<1e-30?.5:(iso-va)/(vb-va);
+    const tB=lz(v00,v10), tT=lz(v01,v11), tL=lz(v00,v01), tR=lz(v10,v11);
+    const B=[x0+tB*cw,y0], T=[x0+tT*cw,y0-ch], L=[x0,y0-tL*ch], R=[x0+cw,y0-tR*ch];
+    // Lookup keyed to bit convention v00=1, v10=2, v01=4, v11=8.
+    // Edges: B=(v00,v10) R=(v10,v11) T=(v01,v11) L=(v00,v01). Saddles are c=6 and c=9.
+    const cellSegs={1:[[L,B]],2:[[B,R]],3:[[L,R]],4:[[T,L]],5:[[T,B]],
+                6:[[B,R],[T,L]],7:[[T,R]],8:[[T,R]],9:[[L,B],[T,R]],10:[[T,B]],
+                11:[[T,L]],12:[[L,R]],13:[[B,R]],14:[[L,B]]}[c];
+    if(!cellSegs) continue;
+    for(const [p1,p2] of cellSegs) rawSegs.push([p1[0],p1[1],p2[0],p2[1]]);
+  }
+
+  // 2) Chain segments into polylines by shared endpoints (cells share exact edge points)
+  const key=(x,y)=>x.toFixed(2)+','+y.toFixed(2);
+  const endMap=new Map();   // point-key -> list of segment indices touching it
+  rawSegs.forEach((s,i)=>{
+    const ka=key(s[0],s[1]), kb=key(s[2],s[3]);
+    (endMap.get(ka)||endMap.set(ka,[]).get(ka)).push(i);
+    (endMap.get(kb)||endMap.set(kb,[]).get(kb)).push(i);
+  });
+  const used=new Array(rawSegs.length).fill(false);
+  const polylines=[];
+  for(let i=0;i<rawSegs.length;i++){
+    if(used[i]) continue;
+    used[i]=true;
+    const s=rawSegs[i];
+    let pts=[[s[0],s[1]],[s[2],s[3]]];
+    // grow from the tail, then from the head
+    for(let dir=0;dir<2;dir++){
+      let extended=true;
+      while(extended){
+        extended=false;
+        const end=dir===0?pts[pts.length-1]:pts[0];
+        const ek=key(end[0],end[1]);
+        const cand=endMap.get(ek)||[];
+        for(const j of cand){
+          if(used[j]) continue;
+          const t=rawSegs[j];
+          let next=null;
+          if(key(t[0],t[1])===ek) next=[t[2],t[3]];
+          else if(key(t[2],t[3])===ek) next=[t[0],t[1]];
+          if(next){ used[j]=true; dir===0?pts.push(next):pts.unshift(next); extended=true; break; }
+        }
+      }
+    }
+    polylines.push(pts);
+  }
+
+  // 3) Drop tiny fragments (quantization artefacts) and stroke the rest as connected curves
+  mctx.beginPath();
+  for(const pl of polylines){
+    let len=0;
+    for(let i=1;i<pl.length;i++) len+=Math.hypot(pl[i][0]-pl[i-1][0], pl[i][1]-pl[i-1][1]);
+    if(len<minLenPx) continue;            // <-- artefact filter
+    mctx.moveTo(pl[0][0],pl[0][1]);
+    for(let i=1;i<pl.length;i++) mctx.lineTo(pl[i][0],pl[i][1]);
+  }
+  mctx.stroke();
+}
+
+function drawBoxes(){
+  const boxes=[
+    {ids:['az1','ar1','az2','ar2'], cbOn:'aOn', color:'#ffffff'},
+    {ids:['bz1','br1','bz2','br2'], cbOn:'bOn', color:'#ffff44'},
+  ];
+  for(const bx of boxes){
+    if(!document.getElementById(bx.cbOn).checked) continue;
+    // box fields are in mm -> convert to metres for the field-grid coordinates
+    const z1=(+document.getElementById(bx.ids[0]).value)/1000;
+    const r1=(+document.getElementById(bx.ids[1]).value)/1000;
+    const z2=(+document.getElementById(bx.ids[2]).value)/1000;
+    const r2=(+document.getElementById(bx.ids[3]).value)/1000;
+    const x1=zToX(z1), x2=zToX(z2);
+    const y1=rToY(r1), y2=rToY(r2);
+    // Clip to plot area before drawing
+    mctx.save();
+    mctx.beginPath(); mctx.rect(PAD.l,PAD.t,PW,PH); mctx.clip();
+    mctx.strokeStyle=bx.color; mctx.lineWidth=2; mctx.setLineDash([6,3]);
+    mctx.strokeRect(Math.min(x1,x2), Math.min(y1,y2), Math.abs(x2-x1), Math.abs(y2-y1));
+    mctx.setLineDash([]);
+    mctx.restore();
+  }
+}
+
+function drawArrow(x,y,dx,dy){
+  const len=Math.sqrt(dx*dx+dy*dy); if(len<2)return;
+  mctx.beginPath();
+  mctx.moveTo(x-dx*0.45,y-dy*0.45); mctx.lineTo(x+dx*0.45,y+dy*0.45);
+  const ang=Math.atan2(dy,dx),hs=Math.min(4,len*0.38);
+  mctx.moveTo(x+dx*0.45,y+dy*0.45);
+  mctx.lineTo(x+dx*0.45-hs*Math.cos(ang-0.45),y+dy*0.45-hs*Math.sin(ang-0.45));
+  mctx.moveTo(x+dx*0.45,y+dy*0.45);
+  mctx.lineTo(x+dx*0.45-hs*Math.cos(ang+0.45),y+dy*0.45-hs*Math.sin(ang+0.45));
+  mctx.stroke();
+}
+
+function drawMapAxes(){
+  mctx.fillStyle='#99a'; mctx.strokeStyle='#446'; mctx.lineWidth=1; mctx.font='11px monospace';
+  mctx.textAlign='center';
+  [-0.25,-0.20,-0.15,-0.10,-0.05,0,0.05,0.10,0.15].forEach(zv=>{
+    const iz=Math.round((zv-zU[0])/(zU[NZ-1]-zU[0])*(NZ-1));
+    if(iz<0||iz>=NZ) return;
+    const x=PAD.l+iz*PW/(NZ-1);
+    mctx.beginPath();mctx.moveTo(x,PAD.t+PH);mctx.lineTo(x,PAD.t+PH+5);mctx.stroke();
+    mctx.fillStyle='#99a'; mctx.fillText(zv.toFixed(2),x,mc.height-5);
+  });
+  mctx.fillText('z (m)',PAD.l+PW/2,mc.height);
+  mctx.textAlign='right';
+  [0,0.05,0.10,0.15,0.20,0.25].forEach(rv=>{
+    const ir=Math.round((rv-rU[0])/(rU[NR-1]-rU[0])*(NR-1));
+    if(ir<0||ir>=NR) return;
+    const y=PAD.t+(NR-1-ir)*PH/(NR-1);
+    mctx.beginPath();mctx.moveTo(PAD.l,y);mctx.lineTo(PAD.l-5,y);mctx.stroke();
+    mctx.fillStyle='#99a'; mctx.fillText(rv.toFixed(2),PAD.l-6,y+4);
+  });
+  mctx.save();mctx.translate(12,PAD.t+PH/2);mctx.rotate(-Math.PI/2);
+  mctx.textAlign='center';mctx.fillText('r (m)',0,0);mctx.restore();
+  mctx.strokeStyle='#335'; mctx.strokeRect(PAD.l,PAD.t,PW,PH);
+}
+
+function drawColorbar(vmin,vmax){
+  const h=cbc.height, w=cbc.width;
+  cbctx.clearRect(0,0,w,h);
+  for(let i=0;i<h;i++){
+    const t=(h-1-i)/(h-1);
+    const rgb=mode==='B'?plasma(t):diverge(t);
+    cbctx.fillStyle=`rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+    cbctx.fillRect(0,i,w,1);
+  }
+  document.getElementById('cb-max').textContent=fmtB(vmax);
+  document.getElementById('cb-min').textContent=fmtB(vmin);
+}
+
+function updateStats(Br,Bz){
+  let maxB=0,maxBr=0,maxBz=0;
+  for(let i=0;i<Br.length;i++){
+    const b=Math.sqrt(Br[i]**2+Bz[i]**2);
+    if(b>maxB)maxB=b;
+    if(Math.abs(Br[i])>maxBr)maxBr=Math.abs(Br[i]);
+    if(Math.abs(Bz[i])>maxBz)maxBz=Math.abs(Bz[i]);
+  }
+  document.getElementById('stats').innerHTML=
+    `<div class="stat">max |B| <span>${fmtB(maxB)}</span></div>`+
+    `<div class="stat">max |Br| <span>${fmtB(maxBr)}</span></div>`+
+    `<div class="stat">max |Bz| <span>${fmtB(maxBz)}</span></div>`;
+}
+
+// ── AXIS PLOT ───────────────────────────────────────────────────
+const ac=document.getElementById('ac'), actx=ac.getContext('2d');
+const APAD={l:60,r:14,t:18,b:58};
+const APW=ac.width-APAD.l-APAD.r, APH=ac.height-APAD.t-APAD.b;
+
+function drawAxisPlot(){
+  actx.clearRect(0,0,ac.width,ac.height);
+  const zArr=RAW.axis_z, n=zArr.length;
+  const axBr=new Array(n), axBz=new Array(n), axB=new Array(n);
+  for(let i=0;i<n;i++){
+    const br=I1*RAW.axis_C1Br[i]+I2*RAW.axis_C2Br[i];
+    const bz=I1*RAW.axis_C1Bz[i]+I2*RAW.axis_C2Bz[i];
+    axBr[i]=br; axBz[i]=bz; axB[i]=Math.sqrt(br*br+bz*bz);
+  }
+  const datasets=mode==='B' ?[{data:axB, color:'#ffdd44',label:'|B|'}]
+    :mode==='Br'?[{data:axBr,color:'#ff7755',label:'Br'}]
+    :[{data:axBz,color:'#55aaff',label:'Bz'},{data:axB,color:'rgba(255,220,68,0.55)',label:'|B|',dash:[4,3]}];
+
+  // Dynamic vertical scale: fit all datasets
+  let dmin=0, dmax=0.12;
+
+  // Add 5% margin and ensure range is non-zero
+  const range=Math.max(dmax-dmin,1e-9);
+  const vmin=0.0;
+  const vmax=120.e-3;
+
+  actx.fillStyle='#0d0d1a'; actx.fillRect(APAD.l,APAD.t,APW,APH);
+
+  // Zero line
+  if(vmin<0&&vmax>0){
+    const y0=APAD.t+APH*(1-(0-vmin)/(vmax-vmin));
+    actx.strokeStyle='#334'; actx.lineWidth=1; actx.setLineDash([]);
+    actx.beginPath();actx.moveTo(APAD.l,y0);actx.lineTo(APAD.l+APW,y0);actx.stroke();
+  }
+  // Iso dashed line
+  if(isoVal>0){
+    const iso=isoVal*1e-3;
+    if(iso>=vmin&&iso<=vmax){
+      const y=APAD.t+APH*(1-(iso-vmin)/(vmax-vmin));
+      actx.strokeStyle='rgba(0,255,136,0.6)'; actx.lineWidth=1.5; actx.setLineDash([5,3]);
+      actx.beginPath();actx.moveTo(APAD.l,y);actx.lineTo(APAD.l+APW,y);actx.stroke();
+      actx.setLineDash([]);
+    }
+  }
+  // Box A vertical lines (z1, z2) — only when box A is visible
+  if(document.getElementById('aOn').checked){
+    const zRange=zArr[n-1]-zArr[0];
+    [[+document.getElementById('az1').value/1000,'z\u2081'],
+     [+document.getElementById('az2').value/1000,'z\u2082']].forEach(([zv,lbl])=>{
+      const x=APAD.l+(zv-zArr[0])/zRange*APW;
+      if(x<APAD.l||x>APAD.l+APW) return;
+      actx.strokeStyle='rgba(255,255,255,0.55)'; actx.lineWidth=1.2; actx.setLineDash([4,3]);
+      actx.beginPath();actx.moveTo(x,APAD.t);actx.lineTo(x,APAD.t+APH);actx.stroke();
+      actx.setLineDash([]);
+      actx.fillStyle='rgba(255,255,255,0.7)'; actx.font='9px monospace'; actx.textAlign='center';
+      actx.fillText(lbl,x,APAD.t+APH-4);
+    });
+  }
+  //
+  // Curves — clipped to the plot area so they never overflow
+  actx.save();
+  actx.beginPath();
+  actx.rect(APAD.l,APAD.t,APW,APH);
+  actx.clip();
+  for(const ds of datasets){
+    actx.strokeStyle=ds.color; actx.lineWidth=1.8; actx.setLineDash(ds.dash||[]);
+    actx.beginPath();
+    for(let i=0;i<n;i++){
+      const x=APAD.l+i/(n-1)*APW;
+      const y=APAD.t+APH*(1-(ds.data[i]-vmin)/(vmax-vmin));
+      i===0?actx.moveTo(x,y):actx.lineTo(x,y);
+    }
+    actx.stroke();
+  }
+  actx.setLineDash([]);
+  actx.restore();
+
+  // Legend labels (outside clip, top-right inside the box)
+  for(const ds of datasets){
+    const li=datasets.indexOf(ds);
+    actx.fillStyle=ds.color; actx.font='10px monospace'; actx.textAlign='left';
+    actx.fillText(ds.label, APAD.l+APW-28, APAD.t+12+li*13);
+  }
+
+  // Axes
+  actx.fillStyle='#99a'; actx.strokeStyle='#446'; actx.lineWidth=1; actx.font='10px monospace';
+  // X axis ticks — rotated labels to avoid overlap
+  actx.textAlign='right';
+  [-0.25,-0.20,-0.15,-0.10,-0.05,0,0.05,0.10,0.15].forEach(zv=>{
+    const x=APAD.l+(zv-zArr[0])/(zArr[n-1]-zArr[0])*APW;
+    if(x<APAD.l||x>APAD.l+APW) return;
+    actx.strokeStyle='#446';
+    actx.beginPath();actx.moveTo(x,APAD.t+APH);actx.lineTo(x,APAD.t+APH+4);actx.stroke();
+    actx.save();
+    actx.translate(x, APAD.t+APH+6);
+    actx.rotate(-Math.PI/4);
+    actx.fillStyle='#99a';
+    actx.fillText(zv.toFixed(2),0,0);
+    actx.restore();
+  });
+  // X axis title
+  actx.textAlign='center'; actx.fillStyle='#99a'; actx.font='10px monospace';
+  actx.fillText('z (m)',APAD.l+APW/2,ac.height-2);
+  // Y axis ticks
+  actx.textAlign='right';
+  for(let i=0;i<=5;i++){
+    const v=vmin+i/5*(vmax-vmin), y=APAD.t+APH*(1-i/5);
+    actx.strokeStyle='#446';
+    actx.beginPath();actx.moveTo(APAD.l,y);actx.lineTo(APAD.l-4,y);actx.stroke();
+    actx.fillStyle='#99a'; actx.fillText((v*1000).toFixed(0),APAD.l-5,y+4);
+  }
+  actx.save();actx.translate(11,APAD.t+APH/2);actx.rotate(-Math.PI/2);
+  actx.textAlign='center'; actx.font='10px monospace';
+  actx.fillText(mode==='B'?'|B| (mT)':mode==='Br'?'Br (mT)':'Bz, |B| (mT)',0,0);
+  actx.restore();
+  actx.strokeStyle='#335'; actx.strokeRect(APAD.l,APAD.t,APW,APH);
+  actx.fillStyle='#668'; actx.font='10px monospace'; actx.textAlign='left';
+  actx.fillText('r = 0', APAD.l+3, APAD.t+12);
+}
+
+function draw(){drawMap();drawAxisPlot(); if(probeShown) probeAt();}
+
+// Bilinear interpolation of a single coil field component at (z,r) in metres
+// Returns {br, bz} at 1 A for the given RAW coil arrays
+function coilAt(Br1A, Bz1A, z, r){
+  const zA=zU[0], zB=zU[NZ-1], rA=rU[0], rB=rU[NR-1];
+  let fz=(z-zA)/(zB-zA)*(NZ-1), fr=(r-rA)/(rB-rA)*(NR-1);
+  fz=Math.max(0,Math.min(NZ-1,fz)); fr=Math.max(0,Math.min(NR-1,fr));
+  const iz=Math.min(NZ-2,Math.floor(fz)), ir=Math.min(NR-2,Math.floor(fr));
+  const tz=fz-iz, tr=fr-ir;
+  const bil=A=>A[idx(iz,ir)]*(1-tz)*(1-tr)+A[idx(iz+1,ir)]*tz*(1-tr)
+              +A[idx(iz,ir+1)]*(1-tz)*tr+A[idx(iz+1,ir+1)]*tz*tr;
+  return {br:bil(Br1A), bz:bil(Bz1A)};
+}
+
+
+// ── CONTROLS ────────────────────────────────────────────────────
+function syncCurrent(slId,numId,varSetter){
+  const sl=document.getElementById(slId), nm=document.getElementById(numId);
+  sl.addEventListener('input',()=>{nm.value=parseFloat(sl.value).toFixed(1);varSetter(+sl.value);draw();});
+  nm.addEventListener('input',()=>{
+    let v=Math.max(0,Math.min(120,+nm.value));
+    sl.value=v; varSetter(v); draw();
+  });
+  nm.addEventListener('change',()=>{nm.value=parseFloat(nm.value).toFixed(1);});
+}
+syncCurrent('I1r','I1n',v=>I1=v);
+syncCurrent('I2r','I2n',v=>I2=v);
+
+function setMode(m){
+  mode=m;['B','Br','Bz'].forEach(x=>document.getElementById('btn-'+x).classList.toggle('active',x===m));
+  document.getElementById('plot-title').textContent=
+    {B:'Total field |B|',Br:'Radial component Br',Bz:'Axial component Bz'}[m]+' \u2014 z (abscissa)  r (ordinate)';
+  draw(); tpUpdateLabels(); tpCompute(); resUpdateLabel();
+}
+function toggleArrows(on){
+  showArrows=on;
+  document.getElementById('btn-arr-on').classList.toggle('active',on);
+  document.getElementById('btn-arr-off').classList.toggle('active',!on);
+  drawMap();
+}
+
+function setIso(v){
+  isoVal=Math.max(0,v);
+  document.getElementById('isoR').value=isoVal;
+  document.getElementById('isoN').value=isoVal;
+  draw();
+}
+document.getElementById('isoR').addEventListener('input',e=>setIso(+e.target.value));
+// Manual entry into the number box is INTEGER mT only (decimals are stripped).
+// The slider can still produce fractional values such as the 87.5 mT preset.
+document.getElementById('isoN').addEventListener('input',e=>{
+  const v=Math.max(0, Math.round(+e.target.value||0));
+  e.target.value=v;                       // strip any typed decimal immediately
+  setIso(v);
+  const sl=document.getElementById('isoR');
+  if(v>+sl.max) sl.max=Math.ceil(v*1.5);
+});
+document.getElementById('isoN').addEventListener('change',e=>{
+  e.target.value=Math.max(0, Math.round(+e.target.value||0));   // enforce integer on blur
+});
+
+// Iso-contour smoothing (artefact filter strength, sigma in grid cells)
+document.getElementById('smR').addEventListener('input',e=>{
+  isoSmooth=+e.target.value;
+  document.getElementById('smV').textContent=isoSmooth.toFixed(1);
+  drawMap();
+});
+
+// Box inputs — redraw on any change
+['az1','ar1','az2','ar2','bz1','br1','bz2','br2','aOn','bOn'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',()=>draw());
+});
+
+// Click-to-probe
+// ── FIELD PROBE (bilinear interpolation at an arbitrary z,r) ──────
+let probeShown=false;
+function fieldAt(z, r){   // z,r in metres; returns {br,bz,b} or null if outside grid
+  if(!RAW) return null;
+  const zA=zU[0], zB=zU[NZ-1], rA=rU[0], rB=rU[NR-1];
+  if(z<Math.min(zA,zB)||z>Math.max(zA,zB)||r<Math.min(rA,rB)||r>Math.max(rA,rB)) return null;
+  const {Br,Bz}=getField();
+  let fz=(z-zA)/(zB-zA)*(NZ-1), fr=(r-rA)/(rB-rA)*(NR-1);
+  fz=Math.max(0,Math.min(NZ-1,fz)); fr=Math.max(0,Math.min(NR-1,fr));
+  const iz=Math.min(NZ-2,Math.floor(fz)), ir=Math.min(NR-2,Math.floor(fr));
+  const tz=fz-iz, tr=fr-ir;
+  const bil=a=>a[idx(iz,ir)]*(1-tz)*(1-tr)+a[idx(iz+1,ir)]*tz*(1-tr)
+              +a[idx(iz,ir+1)]*(1-tz)*tr+a[idx(iz+1,ir+1)]*tz*tr;
+  const br=bil(Br), bz=bil(Bz);
+  return {br,bz,b:Math.sqrt(br*br+bz*bz)};
+}
+function showProbe(z, r){   // z,r in metres
+  probeShown=true;
+  const el=document.getElementById('probe'), f=fieldAt(z,r);
+  if(!f){ el.textContent='z='+(z*1000).toFixed(1)+' mm,  r='+(r*1000).toFixed(1)+' mm   \u21d2   outside field grid'; return; }
+  el.textContent='z='+(z*1000).toFixed(1)+' mm,  r='+(r*1000).toFixed(1)+' mm   \u21d2   '
+    +'|B|='+fmtB(f.b)+',  Br='+fmtB(f.br)+',  Bz='+fmtB(f.bz);
+}
+function probeAt(){   // read the z,r inputs (mm) and show the field there
+  const z=(+document.getElementById('pz').value)/1000;
+  const r=Math.max(0, +document.getElementById('pr').value)/1000;
+  showProbe(z, r);
+}
+
+// Click the map to probe (also fills the z,r boxes)
+mc.addEventListener('click',e=>{
+  const rect=mc.getBoundingClientRect();
+  const mx=e.clientX-rect.left-PAD.l, my=e.clientY-rect.top-PAD.t;
+  if(mx<0||my<0||mx>PW||my>PH) return;
+  const z=zU[0]+(mx/PW)*(zU[NZ-1]-zU[0]);
+  const r=rU[0]+(1-my/PH)*(rU[NR-1]-rU[0]);
+  document.getElementById('pz').value=(z*1000).toFixed(1);
+  document.getElementById('pr').value=(r*1000).toFixed(1);
+  showProbe(z, r);
+});
+
+
+// ── TWO-POINT SOLVER ─────────────────────────────────────────────
+// Keep target labels in sync with mode toggle
+function tpUpdateLabels(){
+  const lbl = mode==='B'?'|B|': mode==='Br'?'Br':'Bz';
+  document.getElementById('tp-lbl1').textContent=lbl;
+  document.getElementById('tp-lbl2').textContent=lbl;
+}
+
+// Get per-coil component at a point according to current mode
+function tpCoilComp(Br1A, Bz1A, z, r){
+  const {br, bz} = coilAt(Br1A, Bz1A, z, r);
+  if(mode==='Br') return br;
+  if(mode==='Bz') return bz;
+  return {br, bz}; // object for |B| case
+}
+
+// Solve and display
+function tpCompute(){
+  if(!RAW) return;
+  tpUpdateLabels();
+
+  const z1=+document.getElementById('tp-z1').value/1000;
+  const r1=Math.max(0,+document.getElementById('tp-r1').value/1000);
+  const B1=+document.getElementById('tp-b1').value/1000;
+
+  const z2=+document.getElementById('tp-z2').value/1000;
+  const r2=Math.max(0,+document.getElementById('tp-r2').value/1000);
+  const B2=+document.getElementById('tp-b2').value/1000;
+
+  const res=document.getElementById('tp-results');
+  const btns=document.getElementById('tp-apply-btns');
+  const note=document.getElementById('tp-note');
+  btns.innerHTML=''; note.textContent='';
+
+  // Per-coil at each point
+  const p1c1=coilAt(RAW.C1_Br,RAW.C1_Bz,z1,r1);
+  const p1c2=coilAt(RAW.C2_Br,RAW.C2_Bz,z1,r1);
+  const p2c1=coilAt(RAW.C1_Br,RAW.C1_Bz,z2,r2);
+  const p2c2=coilAt(RAW.C2_Br,RAW.C2_Bz,z2,r2);
+
+  let solutions=[]; // array of {i1, i2, label}
+
+  if(mode==='Bz'||mode==='Br'){
+    // Linear 2×2 system:
+    // a11·I1 + a12·I2 = b1
+    // a21·I1 + a22·I2 = b2
+    const sel = f => mode==='Bz' ? f.bz : f.br;
+    const a11=sel(p1c1), a12=sel(p1c2);
+    const a21=sel(p2c1), a22=sel(p2c2);
+    const det=a11*a22 - a12*a21;
+    if(Math.abs(det)<1e-30){
+      res.innerHTML='<span style="color:#f77">Singular system — coil fields are proportional at these points.</span>';
+      return;
+    }
+    const i1=(B1*a22 - B2*a12)/det;
+    const i2=(a11*B2 - a21*B1)/det;
+    solutions=[{i1, i2, label:'solution'}];
+
+  } else {
+    // |B| mode — exact solve via sign enumeration
+    //
+    // Each constraint is:  |I1·c1k + I2·c2k|² = Bk_tgt²
+    // Taking the square root:  I1·c1k_comp + I2·c2k_comp = ±Bk_tgt
+    // where "comp" is the signed projection along the local field direction.
+    //
+    // At each point k, write the field vector as fk = I1·v1k + I2·v2k (2D vector in r-z plane).
+    // |fk| = Bk  iff  fk lies on a circle of radius Bk.
+    //
+    // Strategy: project onto TWO orthogonal directions at each point,
+    // giving 2 linear equations per point. But we only have 2 unknowns (I1,I2),
+    // so the correct approach is:
+    //
+    // For each of the 4 sign combinations (s1=±1, s2=±1), solve the LINEAR system:
+    //   I1·(v1k · ek) + I2·(v2k · ek) = sk·Bk    for k=1,2
+    // where ek is the unit vector along (I1·v1k + I2·v2k) at the solution.
+    //
+    // Since we don't know ek a priori, we use the EXACT algebraic equivalence:
+    // |f|² = Bt²  factors as two linear equations for each choice of sign of Bz-component
+    // when Br=0 (axial symmetry), or more generally we solve the 2×2 linear system
+    // for each of the 4 sign combinations of (±Bt1, ±Bt2) and verify |B|.
+    //
+    // This is exact, requires no polynomial root-finding, and handles all cases
+    // including near-parallel fields (where the biquadratic becomes degenerate).
+    //
+    // For the linear projection, we choose the direction of maximum sensitivity:
+    // project onto the unit vector of (c1k, c2k) combined field at a reference current.
+    // Equivalently: for each sign combo, solve the Bz/Br system and check |B|.
+    // We try BOTH Bz and Br projections and keep verified solutions.
+
+    const ILIM = 150;
+    const cands = [];
+    const tol = 1e-3; // relative tolerance on |B| verification
+
+    // For each sign combination (s1, s2) and each projection direction (Bz, Br):
+    for(const s1 of [1, -1]){
+      for(const s2 of [1, -1]){
+        for(const proj of ['bz','br']){
+          const a11 = p1c1[proj], a12 = p1c2[proj];
+          const a21 = p2c1[proj], a22 = p2c2[proj];
+          const rhs1 = s1*B1, rhs2 = s2*B2;
+          const det = a11*a22 - a12*a21;
+          if(Math.abs(det) < 1e-20) continue;
+          const i1 = (rhs1*a22 - rhs2*a12) / det;
+          const i2 = (a11*rhs2 - a21*rhs1) / det;
+          if(Math.abs(i1) > ILIM || Math.abs(i2) > ILIM) continue;
+          // Verify actual |B| at both points
+          const br1v = i1*p1c1.br + i2*p1c2.br, bz1v = i1*p1c1.bz + i2*p1c2.bz;
+          const br2v = i1*p2c1.br + i2*p2c2.br, bz2v = i1*p2c1.bz + i2*p2c2.bz;
+          const B1got = Math.sqrt(br1v**2 + bz1v**2);
+          const B2got = Math.sqrt(br2v**2 + bz2v**2);
+          if(Math.abs(B1got - B1) > tol*B1 + 1e-9) continue;
+          if(Math.abs(B2got - B2) > tol*B2 + 1e-9) continue;
+          // Newton polish
+          let xi = i1, xu = i2;
+          for(let it = 0; it < 8; it++){
+            const brA = xi*p1c1.br + xu*p1c2.br, bzA = xi*p1c1.bz + xu*p1c2.bz;
+            const brB = xi*p2c1.br + xu*p2c2.br, bzB = xi*p2c1.bz + xu*p2c2.bz;
+            const f1 = brA**2 + bzA**2 - B1**2;
+            const f2 = brB**2 + bzB**2 - B2**2;
+            const j11 = 2*(brA*p1c1.br + bzA*p1c1.bz);
+            const j12 = 2*(brA*p1c2.br + bzA*p1c2.bz);
+            const j21 = 2*(brB*p2c1.br + bzB*p2c1.bz);
+            const j22 = 2*(brB*p2c2.br + bzB*p2c2.bz);
+            const d = j11*j22 - j12*j21;
+            if(Math.abs(d) < 1e-30) break;
+            xi -= (f1*j22 - f2*j12) / d;
+            xu -= (j11*f2 - j21*f1) / d;
+          }
+          if(Math.abs(xi) > ILIM || Math.abs(xu) > ILIM) continue;
+          // Final verify after Newton
+          const brA = xi*p1c1.br + xu*p1c2.br, bzA = xi*p1c1.bz + xu*p1c2.bz;
+          const brB = xi*p2c1.br + xu*p2c2.br, bzB = xi*p2c1.bz + xu*p2c2.bz;
+          if(Math.abs(Math.sqrt(brA**2+bzA**2)-B1) > 1e-4*B1+1e-10) continue;
+          if(Math.abs(Math.sqrt(brB**2+bzB**2)-B2) > 1e-4*B2+1e-10) continue;
+          if(!cands.some(c => Math.abs(c.i1-xi)<0.05 && Math.abs(c.i2-xu)<0.05))
+            cands.push({i1: xi, i2: xu});
+        }
+      }
+    }
+    solutions = cands
+      .sort((a,b) => a.i2 - b.i2)
+      .map((c,i) => ({...c, label:`root ${i+1}`}));
+  }
+
+  // Display results
+  if(solutions.length===0){
+    res.innerHTML='<span style="color:#f77">No solution in [−150, 150] A range.</span>';
+    note.textContent='Check that both target values are reachable with the available coil strengths.';
+    return;
+  }
+
+  const colors=['#ffdd44','#4ecdc4','#ff9955','#88aaff'];
+  res.innerHTML='';
+  solutions.forEach((s,i)=>{
+    const col=colors[i%colors.length];
+    res.innerHTML+=`<div style="color:${col}">
+      ${s.label}: I₁ = ${s.i1.toFixed(1)} A,  I₂ = ${s.i2.toFixed(1)} A
+    </div>`;
+    // Verification
+    const br1=s.i1*p1c1.br+s.i2*p1c2.br, bz1=s.i1*p1c1.bz+s.i2*p1c2.bz;
+    const br2=s.i1*p2c1.br+s.i2*p2c2.br, bz2=s.i1*p2c1.bz+s.i2*p2c2.bz;
+    const get=(br,bz)=>mode==='Bz'?bz:mode==='Br'?br:Math.sqrt(br**2+bz**2);
+    const v1=(get(br1,bz1)*1000).toFixed(3), v2=(get(br2,bz2)*1000).toFixed(3);
+    res.innerHTML+=`<div style="color:#557;font-size:0.85em;padding-left:8px">
+      ✓ ${v1} / ${v2} mT  (targets: ${(B1*1000).toFixed(1)} / ${(B2*1000).toFixed(1)})</div>`;
+    const btn=document.createElement('button');
+    btn.className='mb'; btn.style.cssText='padding:3px 6px;font-size:0.74em';
+    btn.style.borderColor=col; btn.style.color=col;
+    btn.textContent=`Apply ${s.label}`;
+    btn.onclick=()=>tpApply(s.i1,s.i2);
+    btns.appendChild(btn);
+  });
+  if(solutions.length>1) note.textContent=`${solutions.length} solutions found in [−150, 150] A.`;
+}
+
+function tpApply(i1,i2){
+  i1=Math.max(0,Math.min(120,i1)); i2=Math.max(0,Math.min(120,i2));
+  I1=i1; I2=i2;
+  document.getElementById('I1n').value=i1.toFixed(1);
+  document.getElementById('I1r').value=i1;
+  document.getElementById('I2n').value=i2.toFixed(1);
+  document.getElementById('I2r').value=i2;
+  draw();
+}
+
+// Wire two-point inputs
+['tp-z1','tp-r1','tp-b1','tp-z2','tp-r2','tp-b2'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', tpCompute);
+});
+
+// ── RESONANCE FINDER (on-axis, r = 0) ────────────────────────────
+function resUpdateLabel(){
+  const lbl = mode==='B'?'|B|': mode==='Br'?'Br':'Bz';
+  document.getElementById('res-lbl').textContent=lbl;
+  document.getElementById('res-lbl2').textContent=lbl;
+}
+
+function findResonances(){
+  if(!RAW) return;
+  const res=document.getElementById('res-results');
+  const tgt=+document.getElementById('res-target').value/1000; // T
+
+  const zArr=RAW.axis_z, n=zArr.length;
+  const {Br,Bz}=getField();
+  // value of the selected component at each z on axis (r=0 → ir=0)
+  const val=new Array(n);
+  for(let iz=0;iz<n;iz++){
+    const br=Br[idx(iz,0)], bz=Bz[idx(iz,0)];
+    val[iz]= mode==='Bz'?bz : mode==='Br'?br : Math.sqrt(br*br+bz*bz);
+  }
+
+  // Find all z where val(z) crosses tgt (for Bz/Br: signed crossing;
+  // for |B|, value is non-negative so only crossings of the positive target matter)
+  const crossings=[];
+  for(let iz=0;iz<n-1;iz++){
+    const v0=val[iz]-tgt, v1=val[iz+1]-tgt;
+    if(v0===0){ crossings.push(zArr[iz]); continue; }
+    if(v0*v1<0){
+      // linear interpolation for the exact crossing point
+      const t=v0/(v0-v1);
+      crossings.push(zArr[iz]+t*(zArr[iz+1]-zArr[iz]));
+    }
+  }
+  // include exact last point if it matches
+  if(val[n-1]===tgt) crossings.push(zArr[n-1]);
+
+  if(crossings.length===0){
+    res.innerHTML='<span style="color:#f77">No crossing found on the available z range.</span>';
+    return;
+  }
+  const compLabel=mode==='B'?'|B|':mode==='Br'?'Br':'Bz';
+  res.innerHTML = `${crossings.length} crossing(s) of ${compLabel} = ${(tgt*1000).toFixed(1)} mT at I₁=${I1.toFixed(1)} A, I₂=${I2.toFixed(1)} A:<br>`
+    + crossings.map(z=>`<span style="color:#00ff88;font-weight:bold">z = ${(z*1000).toFixed(1)} mm</span>`).join(' &nbsp;&nbsp; ');
+}
+
+document.getElementById('res-target').addEventListener('input', ()=>{ resUpdateLabel(); });
+
+// Init: called after CSV files are loaded successfully.
+function init(){
+  I1 = +document.getElementById('I1n').value;        // 93.6 A
+  I2 = +document.getElementById('I2n').value;        // 37.5 A
+  isoVal = Math.max(0, +document.getElementById('isoN').value);  // 87.5 mT
+  isoSmooth = +document.getElementById('smR').value;             // 1.2 px
+  document.getElementById('smV').textContent = isoSmooth.toFixed(1);
+  // keep coil sliders in sync with the number boxes
+  document.getElementById('I1r').value = I1;
+  document.getElementById('I2r').value = I2;
+  // size the iso slider to the actual max |B| at the starting currents
+  const {Br,Bz}=getField(); let mx=0;
+  for(let i=0;i<Br.length;i++){const b=Math.sqrt(Br[i]**2+Bz[i]**2);if(b>mx)mx=b;}
+  document.getElementById('isoR').max = Math.max(mx*1000, isoVal).toFixed(1);
+  document.getElementById('isoR').value = isoVal;
+  draw();
+  tpUpdateLabels(); tpCompute();
+  resUpdateLabel();
+}
+
+</script>
+</body>
+</html>

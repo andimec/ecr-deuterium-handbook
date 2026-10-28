@@ -20,35 +20,31 @@ jobs:
     steps:
       - name: Obtener código
         uses: actions/checkout@v4
-
       - name: Preparar Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: pip
-
       - name: Instalar dependencias
         run: python -m pip install -r requirements.txt
-
       - name: Verificar órdenes de magnitud
         run: python scripts/verificar_magnitudes.py
-
+      - name: Verificar mapas magnetostáticos
+        run: python scripts/verificar_campo.py
+      - name: Integrar los dos campos FEMM y preparar visor
+        run: python scripts/integrar_magnetica.py
       - name: Generar página desde Markdown
         run: python scripts/construir_manual.py
-
       - name: Validar HTML generado
         run: python scripts/verificar_publicacion.py
-
       - name: Preparar GitHub Pages
         if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
-
       - name: Subir web para despliegue
         if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
-
   deploy:
     if: github.event_name != 'pull_request'
     needs: build
