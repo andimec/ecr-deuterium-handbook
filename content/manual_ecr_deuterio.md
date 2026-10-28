@@ -125,6 +125,44 @@ $B_{\rm ECR}=87.52$ mT para 2.45 GHz. En ese campo, $f_{c,D^+}\simeq0.667$ MHz, 
 
 Revisión ECR [R4]; FEMM [R12]; modelos magnetizados [R13].
 
+
+### Caso real de estudio: dos bobinas con mapas FEMM a 1 A
+
+Los siguientes campos son **resultados aportados por el usuario**, no una simulación nueva ni una medición de campo. El archivo `C-RF_1A.csv` contiene el campo de la **bobina RF** a 1 A y `C-EXTRACT_1A.csv` contiene el de la **bobina de extracción** a 1 A. Cada CSV tiene las columnas `r,z,B,Br,Bz`, con posición en metros y campo en teslas. Ambos comparten una malla rectangular axisimétrica de **42 posiciones en z** (−0,250 a +0,160 m) y **27 posiciones en r** (0 a 0,260 m), espaciadas 0,010 m. La columna `B` representa el módulo del campo de cada bobina por separado; **no deben sumarse los módulos**.
+
+Para las corrientes de trabajo iniciales:
+
+- **Bobina RF:** $I_{\rm RF}=41.4$ A.
+- **Bobina de extracción:** $I_{\rm EX}=87.8$ A.
+
+Si se cumple la aproximación magnetostática lineal, la superposición vectorial proporciona:
+
+$$B_r(r,z)=I_{\rm RF}B_{r,{\rm RF},1A}(r,z)+I_{\rm EX}B_{r,{\rm EX},1A}(r,z),$$
+
+$$B_z(r,z)=I_{\rm RF}B_{z,{\rm RF},1A}(r,z)+I_{\rm EX}B_{z,{\rm EX},1A}(r,z), \qquad |\mathbf B|=\sqrt{B_r^2+B_z^2}.$$
+
+El escalado es exacto para un modelo magnetostático lineal con geometría y permeabilidades constantes. **No queda demostrado por disponer de mapas a 1 A que sea exacto si hay acero ferromagnético saturable, histéresis o cualquier otro elemento no lineal**. En ese caso se requiere un barrido del solver magnetostático a distintas corrientes o una validación con mediciones.
+
+**Valores de referencia obtenidos de los CSV**, a 41,4 A y 87,8 A:
+
+| Observable sobre el eje, $r=0$ | Resultado |
+|---|---:|
+| $B_z$ en $z=-100$ mm | 63,61 mT |
+| $B_z$ en $z=0$ mm | 98,64 mT |
+| Primer cruce de $|\mathbf B|=B_{\rm ECR}$ | $z\approx-45,2$ mm |
+| Segundo cruce de $|\mathbf B|=B_{\rm ECR}$ | $z\approx+44,2$ mm |
+| Máximo $|\mathbf B|$ **sobre el eje** de la malla | 98,64 mT |
+
+Se ha utilizado $B_{\rm ECR}=87,523$ mT, correspondiente a 2,45 GHz y electrones no relativistas; los cruces resultan de interpolación lineal entre nodos separados 10 mm. **No son una determinación experimental de la región de absorción ECR.** El mapa completo incluye posiciones fuera de la cámara indicada por las superposiciones geométricas del visor; no debe interpretarse su máximo global como el campo dentro del plasma.
+
+### Laboratorio de magnetostática interactivo
+
+El siguiente visor reproduce y amplía el HTML proporcionado originalmente. Mantiene las vistas $|B|$, $B_r$, $B_z$, vectores, isocontornos con suavizado opcional, geometrías superpuestas, perfil axial, sondas por coordenadas o clic, resolución inversa de corrientes para dos puntos y búsqueda de cruces en el eje. Carga automáticamente ambos mapas originales a 1 A, permite sustituirlos y exportar el campo combinado. Las corrientes se sincronizan con el panel de condiciones iniciales del manual.
+
+**Interpretación:** el isocontorno representa una superficie geométrica de módulo magnético; no calcula por sí solo deposición de potencia, EEDF ni calentamiento. El suavizado cambia solamente la representación del contorno. La interpolación y las búsquedas están limitadas por la resolución de los CSV.
+
+[[ECR_MAGNETIC_VIEWER]]
+
 ## 5. RF: propagación, guía, cavidad, polarización y potencia real
 
 ### Aplicación al inyector

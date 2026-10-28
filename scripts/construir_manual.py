@@ -2,8 +2,8 @@
 """Construye un HTML autónomo (excepto la tipografía matemática opcional de MathJax) desde Markdown.
 
 Uso:
-    python scripts/construir_manual.py
-La fuente editable es content/manual_ecr_deuterio.md. El resultado se genera en site/index.html.
+    python construir_manual.py
+La fuente editable es manual_ecr_deuterio.md.
 """
 from __future__ import annotations
 import html
@@ -33,6 +33,20 @@ md = MarkdownIt('commonmark', {'html': False, 'linkify': True, 'typographer': Tr
 rendered = md.render(text)
 for token, replacement in maths:
     rendered=rendered.replace(f'<p>{token}</p>',replacement).replace(token,replacement)
+# Embeber el visor íntegro, con sus CSV, solo en el HTML final.
+# El marcador permanece en el Markdown editable; no mezclar JS con la fuente física.
+viewer_path=BASE/'assets'/'magnetostatica'/'visor_magnetico_integrado.html'
+viewer_html=viewer_path.read_text(encoding='utf-8')
+widget = ("""<div class="magnetic-panel"><div class="magnetic-toolbar">
+    <div><strong>Simulación magnética interactiva — mapas a 1 A</strong><small>RF: 41,4 A · Extracción: 87,8 A · datos originales integrados</small></div>
+    <button class="btn" type="button" id="openMagneticFull">Abrir visor en pestaña independiente</button>
+    </div>
+    <iframe id="magneticFrame" title="Visor interactivo del campo magnético de dos bobinas"
+            width="100%" height="1790" loading="eager" srcdoc='""" + html.escape(viewer_html,quote=True) + """'></iframe>
+    <div class="magnetic-foot">El iframe contiene una copia autónoma de los CSV. También funciona sin abrir el archivo del visor por separado.</div>
+    </div>""")
+assert rendered.count('<p>[[ECR_MAGNETIC_VIEWER]]</p>')==1, 'marcador de visor ausente'
+rendered=rendered.replace('<p>[[ECR_MAGNETIC_VIEWER]]</p>',widget)
 # Anchor original references inside bibliography, when possible.
 for i in range(1,18):
     rendered=rendered.replace(f'<strong>[R{i}]</strong>', f'<strong id="R{i}">[R{i}]</strong>')
@@ -67,6 +81,12 @@ CSS=r'''
 .note{border-left:4px solid var(--accent);background:#e9f5f8;padding:13px 16px;border-radius:0 7px 7px 0;font-size:13px;margin-top:14px}
 .visual{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}.visual>div{padding:12px;border:1px solid var(--line);border-radius:9px;background:white}.visual svg{display:block;width:100%;height:auto}.visual h3{font-size:13px;margin:0}.legend{font-size:11px;color:var(--muted)}
 .doc{background:white;padding:clamp(20px,4vw,48px);border:1px solid var(--line);border-radius:13px;box-shadow:0 7px 20px #2f476608}.doc>h1{display:none}.doc h2{font-size:25px;letter-spacing:-.028em;border-top:2px solid #e9eff4;padding-top:34px;margin-top:45px;scroll-margin-top:90px;color:#173e5a}.doc h2:first-of-type{margin-top:0}.doc h3{font-size:16px;color:#155572;margin-top:24px;margin-bottom:9px}.doc p,.doc li{line-height:1.77}.doc ul,.doc ol{padding-left:24px}.doc blockquote{border-left:4px solid #e3a954;padding:12px 16px;background:var(--warn-bg);margin:18px 0;color:#684624}.doc blockquote p{margin:0}.doc strong{font-weight:730}.doc a{color:#006c8f;word-break:break-word}.doc table{width:100%;border-collapse:collapse;margin:20px 0;font-size:12px;line-height:1.5;display:block;overflow-x:auto}.doc thead{background:#eef5f9}.doc th,.doc td{padding:9px 11px;border:1px solid var(--line);vertical-align:top;text-align:left;min-width:80px}.doc code{padding:2px 5px;border-radius:5px;background:var(--code)}.equation{text-align:center;padding:14px 6px;margin:12px 0;background:#fafcfe;overflow-x:auto;border-radius:8px}
+.magnetic-panel{border:1px solid #dce5ec;border-radius:12px;overflow:hidden;background:#101529;margin:24px -22px 28px}
+.magnetic-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 15px;color:#e8f1ff;background:#16364a}
+.magnetic-toolbar strong{font-size:13px}.magnetic-toolbar small{display:block;font-size:11px;color:#a5c0d5}.magnetic-toolbar a{background:#edf8fc;color:#174761;text-decoration:none}
+#magneticFrame{width:100%;height:1790px;display:block;border:0;background:#0d0d1a}
+.magnetic-foot{color:#99b4c8;font-size:11px;padding:9px 14px;background:#152337}
+@media(max-width:600px){.magnetic-panel{margin-left:-12px;margin-right:-12px}#magneticFrame{height:1950px}}
 .editor{display:none;position:fixed;inset:62px 0 0 0;z-index:25;background:#fff}.editor.visible{display:grid;grid-template-rows:auto 1fr}.editorbar{display:flex;align-items:center;gap:12px;padding:12px 22px;border-bottom:1px solid var(--line);flex-wrap:wrap}.editorbar p{color:var(--muted);font-size:11px;flex:1;min-width:200px}.editor textarea{padding:20px 24px;border:0;resize:none;outline:0;font:13px/1.7 ui-monospace,Consolas,monospace;color:#123;background:#fafcff;width:100%;height:100%}
 @media(max-width:950px){.layout{grid-template-columns:1fr}.sidebar{display:none}.inputs,.outputs{grid-template-columns:repeat(2,1fr)}.main{padding:18px 16px}.metrics{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:600px){.inputs,.outputs,.visual{grid-template-columns:1fr}.hero{padding:22px}.doc{padding:19px}.top{padding:8px 12px;gap:8px}.brand{font-size:13px}}
@@ -118,14 +138,38 @@ function calc(){
 for(let el of document.querySelectorAll('.field input,.field select'))el.addEventListener('input',calc);calc();
 const search=document.getElementById('search');search.addEventListener('input',()=>{let q=search.value.toLocaleLowerCase('es');document.querySelectorAll('.nav-link').forEach(a=>{a.style.display=a.textContent.toLocaleLowerCase('es').includes(q)?'flex':'none'})});
 const tocLinks=[...document.querySelectorAll('.nav-link')];const observer=new IntersectionObserver(entries=>{entries.forEach(en=>{if(en.isIntersecting){tocLinks.forEach(a=>a.classList.toggle('active',a.dataset.target===en.target.id))}})},{rootMargin:'-80px 0px -70% 0px'});document.querySelectorAll('.doc h2').forEach(el=>observer.observe(el));
-const editor=document.getElementById('editor');const edta=document.getElementById('sourceEditor');const storage='ecr-deuterio-v1-source-edit';const original=JSON.parse(document.getElementById('markdownSource').textContent);
-edta.value=localStorage.getItem(storage)??original;
+const editor=document.getElementById('editor');const edta=document.getElementById('sourceEditor');const storage='ecr-deuterio-v2-source-edit';const original=JSON.parse(document.getElementById('markdownSource').textContent);
+const safeStorage={get:()=>{try{return localStorage.getItem(storage)}catch(e){return null}},set:v=>{try{localStorage.setItem(storage,v);return true}catch(e){return false}},remove:()=>{try{localStorage.removeItem(storage)}catch(e){}}};
+edta.value=safeStorage.get()??original;
 document.getElementById('btnEdit').addEventListener('click',()=>{editor.classList.add('visible');edta.focus()});document.getElementById('closeEdit').addEventListener('click',()=>editor.classList.remove('visible'));
-document.getElementById('saveEdit').addEventListener('click',()=>{localStorage.setItem(storage,edta.value);show('editorStatus','Guardado localmente en este navegador.');});
-document.getElementById('restoreEdit').addEventListener('click',()=>{if(confirm('¿Restaurar el Markdown original en el editor?')){edta.value=original;localStorage.removeItem(storage);show('editorStatus','Fuente restaurada (sin modificar archivos).')}});
+document.getElementById('saveEdit').addEventListener('click',()=>{show('editorStatus',safeStorage.set(edta.value)?'Guardado localmente en este navegador.':'Almacenamiento del navegador no disponible: utiliza Exportar .md.');});
+document.getElementById('restoreEdit').addEventListener('click',()=>{if(confirm('¿Restaurar el Markdown original en el editor?')){edta.value=original;safeStorage.remove();show('editorStatus','Fuente restaurada (sin modificar archivos).')}});
 function download(content, name, mime='text/plain'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type:mime}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},800)}
 document.getElementById('exportEdit').addEventListener('click',()=>download(edta.value,'manual_ecr_deuterio_editado.md','text/markdown'));
 document.getElementById('printDoc').addEventListener('click',()=>window.print());
+// Sincronización ligera de las condiciones iniciales y el visor incrustado.
+const magneticFrame=document.getElementById('magneticFrame');
+document.getElementById('openMagneticFull').addEventListener('click',()=>{
+  const htmlText=magneticFrame.getAttribute('srcdoc');
+  const url=URL.createObjectURL(new Blob([htmlText],{type:'text/html;charset=utf-8'}));
+  const popup=window.open(url,'_blank');
+  if(!popup)alert('El navegador ha bloqueado la ventana emergente: permite abrir la pestaña del visor.');
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+});
+function sendMagneticCurrents(){
+  if(!magneticFrame?.contentWindow)return;
+  const iRF=parseFloat(document.getElementById('coilRF').value);
+  const iEX=parseFloat(document.getElementById('coilEX').value);
+  if(!Number.isFinite(iRF)||!Number.isFinite(iEX))return;
+  magneticFrame.contentWindow.postMessage({type:'ECR_COILS_SET',iRF,iEX},'*');
+}
+['coilRF','coilEX'].forEach(id=>document.getElementById(id).addEventListener('change',sendMagneticCurrents));
+magneticFrame?.addEventListener('load',sendMagneticCurrents);
+window.addEventListener('message',event=>{
+ if(event.source!==magneticFrame?.contentWindow||event.data?.type!=='ECR_COILS_CHANGED')return;
+ if(Number.isFinite(event.data.iRF))document.getElementById('coilRF').value=event.data.iRF.toFixed(1);
+ if(Number.isFinite(event.data.iEX))document.getElementById('coilEX').value=event.data.iEX.toFixed(1);
+});
 '''
 
 HTML=f'''<!doctype html>
@@ -134,7 +178,7 @@ HTML=f'''<!doctype html>
 <style>{CSS}</style>
 <script>window.MathJax={{tex:{{inlineMath:[['\\\\(','\\\\)']],displayMath:[['\\\\[','\\\\]']]}},options:{{skipHtmlTags:['script','noscript','style','textarea','pre','code']}}}};</script>
 <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script></head><body>
-<header class="top"><div class="brand">ECR · Física del inyector<small>Deuterio · 2,45 GHz · Versión editable</small></div><div class="spacer"></div><button class="btn" id="btnEdit">✎ Editar Markdown</button><a class="btn" href="https://github.com/andimec/ecr-deuterium-handbook/blob/main/content/manual_ecr_deuterio.md" rel="noopener noreferrer">Fuente Markdown</a><button class="btn" id="printDoc">Imprimir</button></header>
+<header class="top"><div class="brand">ECR · Física del inyector<small>Deuterio · 2,45 GHz · Versión editable</small></div><div class="spacer"></div><button class="btn" id="btnEdit">✎ Editar Markdown</button><button class="btn" id="printDoc">Imprimir</button></header>
 <div class="layout"><aside class="sidebar"><strong>Contenido</strong><input id="search" class="side-search" placeholder="Buscar capítulo..." aria-label="Buscar capítulo"><nav>{nav}</nav><div class="sidebar-foot">Archivo HTML autónomo para lectura y cálculos (las ecuaciones usan MathJax por CDN). Los cambios editoriales se conservan localmente hasta exportarlos.</div></aside>
 <main class="main"><section class="hero"><div class="tag">Manual de fundamentos y simulación</div><h1>Física de una fuente ECR de deuterio</h1><p>Desde el caudal de D₂ y los neutrales hasta las microondas, absorción ECR, producción de D⁺, superficies BN y extracción. Derivaciones, hipótesis, códigos y bibliografía contrastable.</p></section>
 <div class="metrics"><div class="metric"><small>RF de referencia</small><strong>2,45 GHz</strong></div><div class="metric"><small>Corriente D⁺ nominal</small><strong>140 mA</strong></div><div class="metric"><small>Potencia RF de estudio</small><strong>600–900 W</strong></div><div class="metric"><small>Inyección D₂ de estudio</small><strong>2–5 sccm</strong></div></div>
@@ -143,6 +187,8 @@ HTML=f'''<!doctype html>
  <div class="field"><label for="f">Frecuencia RF (GHz)</label><input type="number" id="f" value="2.45" min="0.1" step="0.01"></div>
  <div class="field"><label for="beam">Corriente de D⁺ (mA)</label><input type="number" id="beam" value="140" min="0" step="5"><small>No corriente total multiespecie</small></div>
  <div class="field"><label for="hv">Voltaje de extracción (kV)</label><input type="number" id="hv" value="100" min="0" step="5"></div>
+ <div class="field"><label for="coilRF">I bobina RF (A)</label><input type="number" id="coilRF" value="41.4" min="0" max="120" step="0.1"><small>Sincronizada con el visor del capítulo 4</small></div>
+ <div class="field"><label for="coilEX">I bobina de extracción (A)</label><input type="number" id="coilEX" value="87.8" min="0" max="120" step="0.1"><small>Sincronizada con el visor del capítulo 4</small></div>
  <div class="field"><label for="rf">Potencia RF incidente (W)</label><input type="number" id="rf" value="750" min="0" step="25"></div>
  <div class="field"><label for="flow">Caudal D₂ (sccm)</label><input type="number" id="flow" value="3.5" min="0.01" max="50" step="0.1"></div>
  <div class="field"><label for="standard">Temperatura estándar del sccm</label><select id="standard"><option value="273.15">0 °C, 1 atm</option><option value="293.15">20 °C, 1 atm</option></select></div>
