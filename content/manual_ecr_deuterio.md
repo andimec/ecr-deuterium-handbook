@@ -132,8 +132,8 @@ Los siguientes campos son **resultados aportados por el usuario**, no una simula
 
 Para las corrientes de trabajo iniciales:
 
-- **Bobina RF:** $I_{\rm RF}=41.4$ A.
-- **Bobina de extracción:** $I_{\rm EX}=87.8$ A.
+- **Bobina RF:** $I_{\rm RF}=87.8$ A.
+- **Bobina de extracción:** $I_{\rm EX}=41.4$ A.
 
 Si se cumple la aproximación magnetostática lineal, la superposición vectorial proporciona:
 
@@ -143,7 +143,7 @@ $$B_z(r,z)=I_{\rm RF}B_{z,{\rm RF},1A}(r,z)+I_{\rm EX}B_{z,{\rm EX},1A}(r,z), \q
 
 El escalado es exacto para un modelo magnetostático lineal con geometría y permeabilidades constantes. **No queda demostrado por disponer de mapas a 1 A que sea exacto si hay acero ferromagnético saturable, histéresis o cualquier otro elemento no lineal**. En ese caso se requiere un barrido del solver magnetostático a distintas corrientes o una validación con mediciones.
 
-**Valores de referencia obtenidos de los CSV**, a 41,4 A y 87,8 A:
+**Valores de referencia obtenidos de los CSV**, a 87.4 A y 41.4 A:
 
 | Observable sobre el eje, $r=0$ | Resultado |
 |---|---:|
